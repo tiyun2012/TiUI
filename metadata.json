@@ -1,0 +1,5 @@
+{
+  "name": "Titanium UI Framework",
+  "description": "A standalone, layout-driven UI framework for 3D editor applications featuring a recursive split-layout engine, module-based RPC architecture, and detachable floating panels.",
+  "requestFramePermissions": []
+}
