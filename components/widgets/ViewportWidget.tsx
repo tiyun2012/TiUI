@@ -12,18 +12,15 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
   const [stats, setStats] = useState<{ fps: number; tris: number } | null>(null);
   const [activeScene, setActiveScene] = useState<string>(params.sceneId || 'Loading...');
 
-  // Mock rendering loop
   useEffect(() => {
     let frameId: number;
     const ctx = canvasRef.current?.getContext('2d');
     
     const render = () => {
       if (ctx && canvasRef.current) {
-        // Clear
-        ctx.fillStyle = '#101012'; // Very dark gray for viewport bg
+        ctx.fillStyle = '#101012'; 
         ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
         
-        // Draw grid
         ctx.strokeStyle = '#27272a';
         ctx.lineWidth = 1;
         const w = canvasRef.current.width;
@@ -36,7 +33,6 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
           ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
         }
 
-        // Draw "3D" Object placeholder
         const time = Date.now() * 0.001;
         const cx = w / 2 + Math.sin(time) * 50;
         const cy = h / 2 + Math.cos(time) * 50;
@@ -46,7 +42,6 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
         ctx.arc(cx, cy, 30, 0, Math.PI * 2);
         ctx.fill();
         
-        // Draw ID text
         ctx.fillStyle = '#fff';
         ctx.font = '10px monospace';
         ctx.fillText(`VP: ${params.viewportId}`, 10, 20);
@@ -55,7 +50,6 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
       frameId = requestAnimationFrame(render);
     };
 
-    // Initialize module connection
     const init = async () => {
       try {
         if (canvasRef.current) {
@@ -65,12 +59,11 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
           });
         }
         
-        const sceneData = await context.api.call<{sceneId: string}>('scene', 'getActive');
-        setActiveScene(sceneData.sceneId);
+        const sceneData = await context.api.call('scene', 'getActive', undefined);
+        if (sceneData) setActiveScene(sceneData.sceneId);
 
-        // Poll stats
-        const s = await context.api.call<{ fps: number, tris: number }>('viewport', 'getStats', { viewportId: params.viewportId });
-        setStats(s);
+        const s = await context.api.call('viewport', 'getStats', { viewportId: params.viewportId });
+        if (s) setStats(s);
       } catch (e) {
         console.error("Viewport init failed", e);
       }
@@ -85,7 +78,6 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
     };
   }, [params.viewportId, context.api, context.isActive, params.sceneId]);
 
-  // Handle Resize
   useEffect(() => {
     const handleResize = () => {
       if (canvasRef.current && canvasRef.current.parentElement) {
@@ -95,7 +87,7 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
     };
     
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initial
+    handleResize(); 
     
     const resizeObserver = new ResizeObserver(handleResize);
     if (canvasRef.current?.parentElement) {
@@ -111,8 +103,6 @@ export const ViewportWidget: React.FC<{ context: WidgetContext; params: Viewport
   return (
     <div className="w-full h-full relative overflow-hidden bg-black">
       <canvas ref={canvasRef} className="block" />
-      
-      {/* Viewport Overlay UI */}
       <div className="absolute top-2 right-2 flex space-x-1">
         <Button variant="ghost" onClick={() => context.api.call('viewport', 'setNavMode', { viewportId: params.viewportId, mode: 'translate' })}>MOV</Button>
         <Button variant="ghost" onClick={() => context.api.call('viewport', 'setNavMode', { viewportId: params.viewportId, mode: 'rotate' })}>ROT</Button>

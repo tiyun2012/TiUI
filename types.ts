@@ -14,6 +14,31 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
+// Strict RPC Schema
+export type RpcSchema = {
+  scene: {
+    list: { params: void; response: Array<{ id: string; name: string }> };
+    create: { params: { name?: string }; response: { id: string; name: string } };
+    setActive: { params: { sceneId: string }; response: { success: boolean } };
+    getActive: { params: void; response: { sceneId: string } };
+  };
+  world: {
+    listRenderables: { params: void; response: Array<{ id: string; name: string; type: string }> };
+  };
+  viewport: {
+    attachCanvas: { params: { viewportId: string; sceneId?: string }; response: { status: string; viewportId: string } };
+    detachCanvas: { params: { viewportId: string }; response: { status: string } };
+    setNavMode: { params: { viewportId: string; mode: string }; response: { mode: string } };
+    input: { params: any; response: { processed: boolean } };
+    getStats: { params: { viewportId: string }; response: { fps: number; tris: number } };
+  };
+  plugin_manager: {
+    manifest: { params: void; response: { version: string; capabilities: string[] } };
+    mount: { params: { instanceId: string; hostElement: string }; response: { mountId: string; status: string } };
+    unmount: { params: { instanceId: string }; response: { status: string } };
+  };
+};
+
 // --- Theme Types ---
 
 export interface Theme {
@@ -52,6 +77,7 @@ export interface WidgetContext {
   widgetId: string;
   isActive: boolean;
   api: {
+    // Dynamic call signature fallback
     call: <T = any>(moduleId: string, op: string, payload?: any) => Promise<T>;
   };
 }

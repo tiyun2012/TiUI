@@ -2,27 +2,15 @@ import React, { useState, useRef } from 'react';
 import { LayoutNode, DragData, DropZone } from '../../types';
 import { PanelHeader, Button } from '../ui/Primitives';
 import { WidgetRenderer } from '../WidgetRenderer';
+import { useLayoutActions } from '../../store/layoutStore';
 
 // --- Icons ---
 const IconClose = () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>;
 const IconFloat = () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>;
 const IconCopy = () => <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 01-2-2V5" /></svg>;
 
-// --- Props ---
-
-interface LayoutActions {
-  splitNode: (nodeId: string, dir: 'row' | 'column') => void;
-  closeTab: (nodeId: string, widgetIndex: number) => void;
-  setActiveTab: (nodeId: string, widgetId: string) => void;
-  tearOff: (nodeId: string, widgetIndex: number) => void;
-  tearOffCopy: (nodeId: string, widgetIndex: number) => void;
-  moveWidget: (dragData: DragData, targetNodeId: string, dropZone: DropZone) => void;
-  resizeNode: (nodeId: string, sizes: number[]) => void;
-}
-
 interface NodeProps {
   node: LayoutNode;
-  actions: LayoutActions;
 }
 
 // --- Helper: Ghost Element ---
@@ -45,7 +33,8 @@ const createGhostElement = (text: string) => {
 
 // --- Leaf Node (Tabs & Content) ---
 
-const LeafNode: React.FC<NodeProps> = ({ node, actions }) => {
+const LeafNode: React.FC<NodeProps> = ({ node }) => {
+  const actions = useLayoutActions(); // Hook call
   const [activeDropZone, setActiveDropZone] = useState<DropZone | null>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
 
@@ -129,7 +118,6 @@ const LeafNode: React.FC<NodeProps> = ({ node, actions }) => {
                     e.dataTransfer.setData('application/json', JSON.stringify(data));
                     e.dataTransfer.effectAllowed = 'move';
                     
-                    // Ghost Drag Image
                     const ghost = createGhostElement(w.title);
                     e.dataTransfer.setDragImage(ghost, 0, 0);
                     setTimeout(() => document.body.removeChild(ghost), 0);
@@ -157,7 +145,8 @@ const LeafNode: React.FC<NodeProps> = ({ node, actions }) => {
 
 // --- Split Node (Recursive with Resize) ---
 
-const SplitNode: React.FC<NodeProps> = ({ node, actions }) => {
+const SplitNode: React.FC<NodeProps> = ({ node }) => {
+  const actions = useLayoutActions(); // Hook call
   const isRow = node.direction === 'row';
   const containerRef = useRef<HTMLDivElement>(null);
   const weights = node.weights || node.children?.map(() => 100 / (node.children?.length || 1));
@@ -199,7 +188,7 @@ const SplitNode: React.FC<NodeProps> = ({ node, actions }) => {
         return (
             <React.Fragment key={child.id}>
                <div style={{ flex: `${weight} 1 0px` }} className="overflow-hidden relative min-w-0 min-h-0">
-                  <LayoutTree node={child} actions={actions} />
+                  <LayoutTree node={child} />
                </div>
                {idx < (node.children?.length || 0) - 1 && (
                  <div 

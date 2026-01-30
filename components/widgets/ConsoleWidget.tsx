@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { WidgetContext } from '../../types';
 import { Input } from '../ui/Primitives';
+import { commandRegistry } from '../../services/commandRegistry';
 
 interface LogEntry {
   id: number;
@@ -8,11 +9,6 @@ interface LogEntry {
   msg: string;
   payload?: any;
 }
-
-const COMMANDS = [
-  'scene.list', 'scene.create', 'scene.setActive', 
-  'viewport.getStats', 'world.listRenderables', 'plugin_manager.mount'
-];
 
 export const ConsoleWidget: React.FC<{ context: WidgetContext; params: { scope?: string } }> = ({ context, params }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -30,8 +26,8 @@ export const ConsoleWidget: React.FC<{ context: WidgetContext; params: { scope?:
       setSuggestions([]);
       return;
     }
-    const match = COMMANDS.filter(c => c.toLowerCase().startsWith(input.toLowerCase()));
-    setSuggestions(match.slice(0, 3)); // Top 3
+    const matches = commandRegistry.search(input, 3);
+    setSuggestions(matches);
   }, [input]);
 
   const execute = async (cmd: string) => {

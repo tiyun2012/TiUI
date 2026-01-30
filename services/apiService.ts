@@ -1,4 +1,4 @@
-import { ApiResponse } from '../types';
+import { ApiResponse, RpcSchema } from '../types';
 
 /**
  * Simulates the Module System RPC.
@@ -23,21 +23,34 @@ class ApiService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  public async call<T>(moduleId: string, op: string, payload: any = {}): Promise<T> {
-    await this.delay(50 + Math.random() * 50); // Small jitter
+  // Type-safe Call Signature
+  public async call<
+    M extends keyof RpcSchema,
+    O extends keyof RpcSchema[M]
+  >(
+    moduleId: M,
+    op: O,
+    payload: RpcSchema[M][O] extends { params: infer P } ? P : void
+  ): Promise<RpcSchema[M][O] extends { response: infer R } ? R : void>;
 
-    console.debug(`[RPC] ${moduleId}.${op}`, payload);
+  // Fallback signature for dynamic calls (like from console input)
+  public async call<T = any>(moduleId: string, op: string, payload?: any): Promise<T>;
+
+  public async call(moduleId: string, op: string, payload: any = {}): Promise<any> {
+    await this.delay(20 + Math.random() * 20); // Faster for responsiveness
+
+    // console.debug(`[RPC] ${moduleId}.${op}`, payload);
 
     try {
       switch (moduleId) {
         case 'scene':
-          return this.handleSceneOps(op, payload) as unknown as T;
+          return this.handleSceneOps(op, payload);
         case 'world':
-          return this.handleWorldOps(op, payload) as unknown as T;
+          return this.handleWorldOps(op, payload);
         case 'viewport':
-          return this.handleViewportOps(op, payload) as unknown as T;
+          return this.handleViewportOps(op, payload);
         case 'plugin_manager':
-          return this.handlePluginOps(op, payload) as unknown as T;
+          return this.handlePluginOps(op, payload);
         default:
           throw new Error(`Unknown module: ${moduleId}`);
       }
