@@ -1,16 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutNode, LayoutState, WidgetState, WidgetType, FloatingPanel, DragData, DropZone } from './types';
+import { LayoutNode, LayoutState, WidgetState, CoreWidgetTypes, FloatingPanel, DragData, DropZone } from './types';
 import { LayoutTree } from './components/layout/LayoutTree';
-import { WidgetRenderer } from './components/WidgetRenderer';
 import { apiService } from './services/apiService';
+import { widgetRegistry } from './services/widgetRegistry';
+
+// Import Widgets for Registration
+import { ViewportWidget } from './components/widgets/ViewportWidget';
+import { ConsoleWidget } from './components/widgets/ConsoleWidget';
+import { InspectorWidget } from './components/widgets/InspectorWidget';
+import { ModuleListWidget } from './components/widgets/ModuleListWidget';
+
+// Register Core Widgets
+widgetRegistry.register(CoreWidgetTypes.VIEWPORT, ViewportWidget);
+widgetRegistry.register(CoreWidgetTypes.CONSOLE, ConsoleWidget);
+widgetRegistry.register(CoreWidgetTypes.INSPECTOR, InspectorWidget);
+widgetRegistry.register(CoreWidgetTypes.PLUGIN_HOST, InspectorWidget); // Reusing inspector for now
+widgetRegistry.register(CoreWidgetTypes.MODULE_LIST, ModuleListWidget);
 
 // --- Default Layout Factory ---
 
 const createDefaultLayout = (): LayoutState => {
-  const modlist: WidgetState = { instanceId: 'w_mods', type: WidgetType.MODULE_LIST, title: 'Modules', params: {} };
-  const vp1: WidgetState = { instanceId: 'w_vp1', type: WidgetType.VIEWPORT, title: 'Viewport 1', params: { viewportId: 'vp_01', sceneId: 'scene_main' } };
-  const cons: WidgetState = { instanceId: 'w_console', type: WidgetType.CONSOLE, title: 'Output Log', params: {} };
-  const insp: WidgetState = { instanceId: 'w_insp', type: WidgetType.INSPECTOR, title: 'Inspector', params: {} };
+  const modlist: WidgetState = { instanceId: 'w_mods', type: CoreWidgetTypes.MODULE_LIST, title: 'Modules', params: {} };
+  const vp1: WidgetState = { instanceId: 'w_vp1', type: CoreWidgetTypes.VIEWPORT, title: 'Viewport 1', params: { viewportId: 'vp_01', sceneId: 'scene_main' } };
+  const cons: WidgetState = { instanceId: 'w_console', type: CoreWidgetTypes.CONSOLE, title: 'Output Log', params: {} };
+  const insp: WidgetState = { instanceId: 'w_insp', type: CoreWidgetTypes.INSPECTOR, title: 'Inspector', params: {} };
 
   return {
     root: {
@@ -62,7 +75,22 @@ const createDefaultLayout = (): LayoutState => {
   };
 };
 
-const clone = <T,>(obj: T): T => JSON.parse(JSON.stringify(obj));
+// --- Sanitization ---
+
+const sanitizeLayout = (layout: any): LayoutState => {
+  // Basic structural check. In a real app, we'd recursively validate every node.
+  if (!layout || !layout.root) {
+    console.warn("Invalid layout structure detected, resetting to default.");
+    return createDefaultLayout();
+  }
+  // Ensure floating array exists
+  if (!Array.isArray(layout.floating)) {
+    layout.floating = [];
+  }
+  return layout as LayoutState;
+};
+
+// --- Helper: Search ---
 
 const findNode = (root: LayoutNode, id: string): LayoutNode | null => {
   if (root.id === id) return root;
@@ -78,7 +106,7 @@ const findNode = (root: LayoutNode, id: string): LayoutNode | null => {
 const App: React.FC = () => {
   const [layout, setLayout] = useState<LayoutState>(() => {
     const saved = localStorage.getItem('titanium_layout');
-    return saved ? JSON.parse(saved) : createDefaultLayout();
+    return saved ? sanitizeLayout(JSON.parse(saved)) : createDefaultLayout();
   });
 
   useEffect(() => {
@@ -87,9 +115,26 @@ const App: React.FC = () => {
 
   // --- Layout Actions ---
 
+  // Optimization: structuredClone is much faster than JSON.parse/stringify
+  const deepClone = useCallback(<T,>(obj: T): T => {
+    return typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
+  }, []);
+
+  const bringToFront = useCallback((floatId: string) => {
+    setLayout(prev => {
+      const idx = prev.floating.findIndex(f => f.id === floatId);
+      if (idx === -1 || idx === prev.floating.length - 1) return prev; // Already on top or not found
+      
+      const next = deepClone(prev);
+      const [panel] = next.floating.splice(idx, 1);
+      next.floating.push(panel);
+      return next;
+    });
+  }, [deepClone]);
+
   const splitNode = useCallback((nodeId: string, dir: 'row' | 'column') => {
     setLayout(prev => {
-      const next = clone(prev);
+      const next = deepClone(prev);
       const node = findNode(next.root, nodeId);
       if (!node || node.type !== 'leaf') return next;
 
@@ -112,29 +157,29 @@ const App: React.FC = () => {
       const child2: LayoutNode = {
         id: `${nodeId}_2`,
         type: 'leaf',
-        widgets: [{ instanceId: `w_empty_${Date.now()}`, type: WidgetType.CONSOLE, title: 'New Console', params: {} }],
+        widgets: [{ instanceId: `w_empty_${Date.now()}`, type: CoreWidgetTypes.CONSOLE, title: 'New Console', params: {} }],
         activeWidgetId: undefined
       };
       
       node.children = [child1, child2];
       return next;
     });
-  }, []);
+  }, [deepClone]);
 
   const resizeNode = useCallback((nodeId: string, weights: number[]) => {
       setLayout(prev => {
-          const next = clone(prev);
+          const next = deepClone(prev);
           const node = findNode(next.root, nodeId);
           if (node && node.type === 'split') {
               node.weights = weights;
           }
           return next;
       });
-  }, []);
+  }, [deepClone]);
 
   const closeTab = useCallback((nodeId: string, widgetIndex: number) => {
     setLayout(prev => {
-      const next = clone(prev);
+      const next = deepClone(prev);
       const node = findNode(next.root, nodeId);
       if (!node || !node.widgets) return next;
 
@@ -146,20 +191,20 @@ const App: React.FC = () => {
       }
       return next;
     });
-  }, []);
+  }, [deepClone]);
 
   const setActiveTab = useCallback((nodeId: string, widgetId: string) => {
     setLayout(prev => {
-      const next = clone(prev);
+      const next = deepClone(prev);
       const node = findNode(next.root, nodeId);
       if (node) node.activeWidgetId = widgetId;
       return next;
     });
-  }, []);
+  }, [deepClone]);
 
   const tearOff = useCallback((nodeId: string, widgetIndex: number) => {
       setLayout(prev => {
-          const next = clone(prev);
+          const next = deepClone(prev);
           const node = findNode(next.root, nodeId);
           if(!node || !node.widgets) return prev;
 
@@ -181,12 +226,12 @@ const App: React.FC = () => {
           });
           return next;
       });
-  }, []);
+  }, [deepClone]);
 
   // Duplicate to Float (Tear-off Copy)
   const tearOffCopy = useCallback((nodeId: string, widgetIndex: number) => {
       setLayout(prev => {
-          const next = clone(prev);
+          const next = deepClone(prev);
           const node = findNode(next.root, nodeId);
           if(!node || !node.widgets) return prev;
 
@@ -196,7 +241,7 @@ const App: React.FC = () => {
           const newWidget: WidgetState = { ...original, instanceId: newId, title: `${original.title} (Copy)` };
 
           // SPECIAL LOGIC: If Viewport, allow separate instance (unique viewportId)
-          if (newWidget.type === WidgetType.VIEWPORT) {
+          if (newWidget.type === CoreWidgetTypes.VIEWPORT) {
              const newVpId = `vp_${Date.now().toString().slice(-4)}`;
              newWidget.params = { ...newWidget.params, viewportId: newVpId };
              newWidget.title = `Viewport ${newVpId}`;
@@ -214,7 +259,7 @@ const App: React.FC = () => {
           });
           return next;
       });
-  }, []);
+  }, [deepClone]);
 
   const closeFloating = (id: string) => {
       setLayout(prev => ({ ...prev, floating: prev.floating.filter(f => f.id !== id) }));
@@ -222,7 +267,7 @@ const App: React.FC = () => {
 
   const moveWidget = useCallback((dragData: DragData, targetNodeId: string, dropZone: DropZone) => {
     setLayout(prev => {
-        const next = clone(prev);
+        const next = deepClone(prev);
         const targetNode = findNode(next.root, targetNodeId);
         if (!targetNode || targetNode.type !== 'leaf') return prev;
         
@@ -281,7 +326,7 @@ const App: React.FC = () => {
         }
         return next;
     });
-  }, []);
+  }, [deepClone]);
 
   return (
     <div className="w-screen h-screen flex flex-col bg-editor-bg text-editor-text font-sans selection:bg-editor-accent selection:text-white">
@@ -296,9 +341,11 @@ const App: React.FC = () => {
       </div>
       <div className="flex-1 relative overflow-hidden">
         <LayoutTree node={layout.root} actions={{ splitNode, closeTab, setActiveTab, tearOff, tearOffCopy, moveWidget, resizeNode }} />
-        {layout.floating.map(fp => (
+        {layout.floating.map((fp, idx) => (
             <div key={fp.id} className="absolute flex flex-col bg-editor-bg border border-editor-accent shadow-2xl rounded-sm overflow-hidden"
-                style={{ left: fp.x, top: fp.y, width: fp.width, height: fp.height, zIndex: 50 }}>
+                style={{ left: fp.x, top: fp.y, width: fp.width, height: fp.height, zIndex: 50 + idx }}
+                onMouseDownCapture={() => bringToFront(fp.id)}
+            >
                 <div className="h-6 bg-editor-accent flex items-center justify-between px-2 cursor-move"
                     draggable onDragStart={(e) => {
                         const data: DragData = { type: 'floating', floatId: fp.id };

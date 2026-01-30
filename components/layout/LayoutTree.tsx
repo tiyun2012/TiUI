@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { LayoutNode, WidgetState, DragData, DropZone } from '../../types';
+import React, { useState, useRef } from 'react';
+import { LayoutNode, DragData, DropZone } from '../../types';
 import { PanelHeader, Button } from '../ui/Primitives';
 import { WidgetRenderer } from '../WidgetRenderer';
 
@@ -24,6 +24,24 @@ interface NodeProps {
   node: LayoutNode;
   actions: LayoutActions;
 }
+
+// --- Helper: Ghost Element ---
+const createGhostElement = (text: string) => {
+  const el = document.createElement('div');
+  el.textContent = text;
+  el.style.backgroundColor = 'var(--color-active)';
+  el.style.color = 'var(--color-text)';
+  el.style.padding = '4px 8px';
+  el.style.borderRadius = '4px';
+  el.style.fontSize = '12px';
+  el.style.fontWeight = 'bold';
+  el.style.position = 'absolute';
+  el.style.top = '-1000px';
+  el.style.zIndex = '1000';
+  el.style.border = '1px solid var(--color-accent)';
+  document.body.appendChild(el);
+  return el;
+};
 
 // --- Leaf Node (Tabs & Content) ---
 
@@ -110,6 +128,11 @@ const LeafNode: React.FC<NodeProps> = ({ node, actions }) => {
                     const data: DragData = { type: 'tab', sourceNodeId: node.id, widgetIndex: idx };
                     e.dataTransfer.setData('application/json', JSON.stringify(data));
                     e.dataTransfer.effectAllowed = 'move';
+                    
+                    // Ghost Drag Image
+                    const ghost = createGhostElement(w.title);
+                    e.dataTransfer.setDragImage(ghost, 0, 0);
+                    setTimeout(() => document.body.removeChild(ghost), 0);
                 }}
                 onClick={() => actions.setActiveTab(node.id, w.instanceId)}
                 className={`group flex items-center space-x-2 px-3 py-2 text-xs cursor-pointer border-r border-editor-border min-w-[100px] max-w-[200px] truncate select-none ${isActive ? 'bg-editor-panel text-editor-accent border-b-2 border-b-editor-accent' : 'bg-editor-bg text-editor-muted hover:bg-editor-panel'} active:cursor-grabbing`}
@@ -153,6 +176,7 @@ const SplitNode: React.FC<NodeProps> = ({ node, actions }) => {
         const deltaPercent = (deltaPixels / containerSize) * 100;
 
         const newWeights = [...startWeights];
+        // Constrain to avoid collapse
         newWeights[index] = Math.max(5, startWeights[index] + deltaPercent);
         newWeights[index + 1] = Math.max(5, startWeights[index + 1] - deltaPercent);
         

@@ -1,10 +1,7 @@
 import React from 'react';
-import { WidgetType, WidgetState, WidgetContext } from '../types';
+import { WidgetState, WidgetContext } from '../types';
 import { apiService } from '../services/apiService';
-import { ViewportWidget, ViewportParams } from './widgets/ViewportWidget';
-import { ConsoleWidget } from './widgets/ConsoleWidget';
-import { InspectorWidget } from './widgets/InspectorWidget';
-import { ModuleListWidget } from './widgets/ModuleListWidget';
+import { widgetRegistry } from '../services/widgetRegistry';
 
 interface Props {
   widget: WidgetState;
@@ -19,17 +16,20 @@ export const WidgetRenderer: React.FC<Props> = ({ widget, isActive, widgetId }) 
     api: apiService
   };
 
-  switch (widget.type) {
-    case WidgetType.VIEWPORT:
-      return <ViewportWidget context={context} params={widget.params as ViewportParams} />;
-    case WidgetType.CONSOLE:
-      return <ConsoleWidget context={context} params={widget.params} />;
-    case WidgetType.INSPECTOR:
-    case WidgetType.PLUGIN_HOST:
-        return <InspectorWidget context={context} params={widget.params} />;
-    case WidgetType.MODULE_LIST:
-        return <ModuleListWidget context={context} />;
-    default:
-      return <div className="p-4 text-red-500">Unknown Widget Type: {widget.type}</div>;
+  const Component = widgetRegistry.get(widget.type);
+
+  if (!Component) {
+    return (
+      <div className="h-full flex items-center justify-center bg-editor-bg text-red-400 text-xs p-4 border border-red-900/50">
+        <div className="text-center">
+          <p className="font-bold">Unknown Widget Type</p>
+          <p className="font-mono mt-1 opacity-70">"{widget.type}"</p>
+          <p className="mt-2 text-[10px] text-editor-muted">It may not be registered or the plugin is missing.</p>
+        </div>
+      </div>
+    );
   }
+
+  // Error boundary could go here for robustness
+  return <Component context={context} params={widget.params} />;
 };

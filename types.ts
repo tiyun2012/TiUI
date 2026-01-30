@@ -31,18 +31,19 @@ export interface Theme {
 
 // --- Widget Contract ---
 
-export enum WidgetType {
-  VIEWPORT = 'VIEWPORT',
-  CONSOLE = 'CONSOLE',
-  MODULE_LIST = 'MODULE_LIST',
-  PLUGIN_HOST = 'PLUGIN_HOST',
-  INSPECTOR = 'INSPECTOR',
-  EMPTY = 'EMPTY'
-}
+// We keep these constants for Core widgets, but the type is now string to allow plugins
+export const CoreWidgetTypes = {
+  VIEWPORT: 'VIEWPORT',
+  CONSOLE: 'CONSOLE',
+  MODULE_LIST: 'MODULE_LIST',
+  PLUGIN_HOST: 'PLUGIN_HOST',
+  INSPECTOR: 'INSPECTOR',
+  EMPTY: 'EMPTY'
+} as const;
 
 export interface WidgetState {
   instanceId: string;
-  type: WidgetType;
+  type: string; // Changed from enum to string for extensibility
   title: string;
   params: Record<string, any>; // Generic JSON params
 }
